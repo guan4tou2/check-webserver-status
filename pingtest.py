@@ -4,9 +4,24 @@ from email.mime.text import MIMEText
 from string import Template
 from pathlib import Path
 
-template = Template(Path("message.html").read_text())
 ctx = ssl.create_default_context()
 ctx.set_ciphers('DEFAULT')
+template = Template(Path("message.html").read_text())
+
+#config here
+#####################################################
+sender=""
+recipient=""
+cc_list=["",""]
+hostname_list=['','']
+stmp_user=''
+stmp_password=''
+delay_time=60*30 #check every half hour
+####################################################
+
+
+def now():
+    return datetime.datetime.now()
 
 def check_ping(hostname):
     parameter = '-n' if platform.system().lower()=='windows' else '-c'
@@ -19,42 +34,43 @@ def check_ping(hostname):
 
 def check_status(hostname):
     try:
-      code=requests.get("https://"+hostname).status_code
+        result=requests.get("https://"+hostname).status_code
+        print(hostname,result)
+        return result
     except Exception as err:
-      code=err
-    return code
+        print(hostname,err)
+        return err
 
 def Send_Mail(subject,message,ctx):
-    body = template.substitute({ "message": message})
-    smtp=smtplib.SMTP_SSL('mail server',port,context = ctx) # set mail server and port,default 465
+    content = MIMEMultipart() 
+
+    content["from"] = sender  
+    content["to"] = recipient 
+    # content["cc"] = ",".join(cc_list) # if need cc,remove this comment out
+    content["subject"] = subject 
+
+    smtp=smtplib.SMTP_SSL('mail.nfu.edu.tw',465,context = ctx)
     smtp.ehlo()
     # smtp.starttls()
     smtp.login(stmp_user,stmp_password)
-    content["subject"] = subject  #mail title
+    
+    body = template.substitute({ "message": message})
     content.attach(MIMEText(body,"html"))
     status=smtp.send_message(content)
     if status=={}:
-        print(subject,"mail send successful!")
+        print(subject,"郵件傳送成功!")
     else:
-        print(subject,"mail send failed!")
+        print(subject,"郵件傳送失敗!")
     smtp.quit()
-    
-content = MIMEMultipart()  
-content["from"] = ""  #sender
-content["to"] = "" #recive
 
-## set here
-hostname_list=[''] # webserver url
-stmp_user='' # sender username
-stmp_password='' # sender password
+Send_Mail("Server Check Start "+now().strftime("%Y/%m/%d %H:%M:%S"),"Start daily check",ctx)
 
-Send_Mail("Server Start Check Notify "+datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"),message,ctx)
+flag=True
 while 1:
-    now=(datetime.datetime.now().hour,datetime.datetime.now().minute)
     pingstatus_list=[]
     status_code_list=[]
-    Warning=False
-    message=datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")+"""
+    Inactive=False
+    message=now().strftime("%Y/%m/%d %H:%M:%S")+"""
         <table border="1" style="border-collapse:collapse;">
         <tr >
           <th style="padding: 10px;">主機</th>
@@ -66,11 +82,9 @@ while 1:
     for _ in hostname_list:
         ping=check_ping(_)
         code=check_status(_)
-        print(_,ping,code)
         message+=f'<td align="center" style="padding: 10px;">{_}</td>'
         if ping=='Inactive':
              message+=f'<td style="padding: 10px; background-color: rgba(255, 0, 0, 0.63);" align="center">{ping}</td>'
-             Warning=True
         else:
              message+=f'<td align="center" style="padding: 10px;">{ping}</td>'
 
@@ -78,18 +92,18 @@ while 1:
              message+=f'<td align="center" style="padding: 10px;">{code}</td>'
         else:
              message+=f'<td style="padding: 10px; background-color: rgba(255, 0, 0, 0.63);" align="center">{code}</td>'
-             Warning=True
         message+="</tr>"
-    
+
     message+="""
     </tr>
       </table>
     """
-
-    #print(message)
-    if Inactive: # when webserver is abnormal will send a notify mail
-        Send_Mail("Server Abnormal Notify "+datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"),message,ctx)
+    if now().hour!=7:
+        flag=True
+    if Inactive:
+        Send_Mail("Server Inactive Notify "+now().strftime("%Y/%m/%d %H:%M:%S"),message,ctx)
     else:
-        if now[0]==7: # when 7 o'clock will send a daliy mail
-            Send_Mail("Daliy Check Server Status "+datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"),message,ctx)
-    time.sleep(60*30) # check each half hour
+        if now().hour==7 and flag:
+            Send_Mail("Daliy Check Server Status "+now().strftime("%Y/%m/%d %H:%M:%S"),message,ctx)
+            flag=False
+    time.sleep(delay_time)  
