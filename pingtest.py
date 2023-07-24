@@ -17,6 +17,8 @@ hostname_list=['','']
 stmp_user=''
 stmp_password=''
 delay_time=60*30 #check every half hour
+mail_server=''
+port=
 ####################################################
 
 
@@ -49,7 +51,7 @@ def Send_Mail(subject,message,ctx):
     # content["cc"] = ",".join(cc_list) # if need cc,remove this comment out
     content["subject"] = subject 
 
-    smtp=smtplib.SMTP_SSL('mail.nfu.edu.tw',465,context = ctx)
+    smtp=smtplib.SMTP_SSL(mail_server,port,context = ctx)
     smtp.ehlo()
     # smtp.starttls()
     smtp.login(stmp_user,stmp_password)
@@ -58,9 +60,9 @@ def Send_Mail(subject,message,ctx):
     content.attach(MIMEText(body,"html"))
     status=smtp.send_message(content)
     if status=={}:
-        print(subject,"郵件傳送成功!")
+        print(subject,"mail sended!")
     else:
-        print(subject,"郵件傳送失敗!")
+        print(subject,"mail send fail!")
     smtp.quit()
 
 Send_Mail("Server Check Start "+now().strftime("%Y/%m/%d %H:%M:%S"),"Start daily check",ctx)
